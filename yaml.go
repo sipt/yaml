@@ -295,7 +295,7 @@ type fieldInfo struct {
 	Key       string
 	Num       int
 	OmitEmpty bool
-	Flow      bool
+	Flow      string
 	// Id holds the unique field identifier, so we can cheaply
 	// check for field duplicates without maintaining an extra map.
 	Id int
@@ -342,12 +342,16 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 				switch flag {
 				case "omitempty":
 					info.OmitEmpty = true
-				case "flow":
-					info.Flow = true
 				case "inline":
 					inline = true
 				default:
-					return nil, errors.New(fmt.Sprintf("Unsupported flag %q in tag %q of type %s", flag, tag, st))
+					if flag == "flow" {
+						info.Flow = flag
+					} else if err := isOnion(flag); err == nil {
+						info.Flow = flag
+					} else {
+						return nil, errors.New(fmt.Sprintf("Unsupported flag %q in tag %q of type %s", flag, tag, st))
+					}
 				}
 			}
 			tag = fields[0]
@@ -463,4 +467,17 @@ func isZero(v reflect.Value) bool {
 		return true
 	}
 	return false
+}
+
+func isOnion(v string) error {
+	strs := strings.Split(v, "flow")
+	if len(strs) != 2 || len(strs[0]) != len(strs[1]) {
+		return errors.New("")
+	}
+	for i := range strs[0] {
+		if strs[0][i] != '[' || strs[1][i] != ']' {
+			return errors.New("")
+		}
+	}
+	return nil
 }

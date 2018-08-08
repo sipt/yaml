@@ -17,7 +17,7 @@ type encoder struct {
 	emitter yaml_emitter_t
 	event   yaml_event_t
 	out     []byte
-	flow    bool
+	flow    string
 	// doneInit holds whether the initial stream_start_event has been
 	// emitted.
 	doneInit bool
@@ -160,7 +160,9 @@ func (e *encoder) mapv(tag string, in reflect.Value) {
 	e.mappingv(tag, func() {
 		keys := keyList(in.MapKeys())
 		sort.Sort(keys)
+		flow := e.flow
 		for _, k := range keys {
+			e.flow = flow
 			e.marshal("", k)
 			e.marshal("", in.MapIndex(k))
 		}
@@ -200,7 +202,7 @@ func (e *encoder) structv(tag string, in reflect.Value) {
 		if sinfo.InlineMap >= 0 {
 			m := in.Field(sinfo.InlineMap)
 			if m.Len() > 0 {
-				e.flow = false
+				e.flow = ""
 				keys := keyList(m.MapKeys())
 				sort.Sort(keys)
 				for _, k := range keys {
@@ -208,7 +210,7 @@ func (e *encoder) structv(tag string, in reflect.Value) {
 						panic(fmt.Sprintf("Can't have key %q in inlined map; conflicts with struct field", k.String()))
 					}
 					e.marshal("", k)
-					e.flow = false
+					e.flow = ""
 					e.marshal("", m.MapIndex(k))
 				}
 			}
@@ -219,9 +221,11 @@ func (e *encoder) structv(tag string, in reflect.Value) {
 func (e *encoder) mappingv(tag string, f func()) {
 	implicit := tag == ""
 	style := yaml_BLOCK_MAPPING_STYLE
-	if e.flow {
-		e.flow = false
+	if e.flow == "flow" {
+		e.flow = ""
 		style = yaml_FLOW_MAPPING_STYLE
+	} else {
+		e.flow = shell(e.flow)
 	}
 	yaml_mapping_start_event_initialize(&e.event, nil, []byte(tag), implicit, style)
 	e.emit()
@@ -233,18 +237,32 @@ func (e *encoder) mappingv(tag string, f func()) {
 func (e *encoder) slicev(tag string, in reflect.Value) {
 	implicit := tag == ""
 	style := yaml_BLOCK_SEQUENCE_STYLE
-	if e.flow {
-		e.flow = false
+	if e.flow == "flow" {
+		e.flow = ""
 		style = yaml_FLOW_SEQUENCE_STYLE
+	} else {
+		e.flow = shell(e.flow)
 	}
 	e.must(yaml_sequence_start_event_initialize(&e.event, nil, []byte(tag), implicit, style))
 	e.emit()
 	n := in.Len()
+	flow := e.flow
 	for i := 0; i < n; i++ {
+		e.flow = flow
 		e.marshal("", in.Index(i))
 	}
 	e.must(yaml_sequence_end_event_initialize(&e.event))
 	e.emit()
+}
+
+// "[[flow]]" => "[flow]"
+// "flow" => "flow"
+// "" => ""
+func shell(v string) string {
+	if len(v) >= 2 && v[0] == '[' && v[len(v)-1] == ']' {
+		v = v[1 : len(v)-1]
+	}
+	return v
 }
 
 // isBase60 returns whether s is in base 60 notation as defined in YAML 1.1.

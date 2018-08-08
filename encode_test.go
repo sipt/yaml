@@ -12,7 +12,7 @@ import (
 	"os"
 
 	. "gopkg.in/check.v1"
-	"gopkg.in/yaml.v2"
+	"github.com/sipt/yaml"
 )
 
 var marshalIntTest = 123
@@ -248,6 +248,43 @@ var marshalTests = []struct {
 		"a: {b: c, d: e}\n",
 	},
 
+	// Onion flow flag
+	{
+		&struct {
+			A [][]int "a,[flow]"
+		}{[][]int{{1, 2}, {3, 4}}},
+		`a:
+- [1, 2]
+- [3, 4]
+`,
+	}, {
+		&struct {
+			A [][][]int "a,[flow]"
+		}{[][][]int{{{1, 2}, {3, 4}}, {{1, 2}, {3, 4}}}},
+		`a:
+- [[1, 2], [3, 4]]
+- [[1, 2], [3, 4]]
+`,
+	}, {
+		&struct {
+			A [][][]int "a,[[flow]]"
+		}{[][][]int{{{1, 2}, {3, 4}}, {{1, 2}, {3, 4}}}},
+		`a:
+- - [1, 2]
+  - [3, 4]
+- - [1, 2]
+  - [3, 4]
+`,
+	}, {
+		&struct {
+			A map[string]map[string]string "a,[flow]"
+		}{map[string]map[string]string{"b": {"b": "c", "d": "e"}, "d": {"b": "c", "d": "e"}}},
+		`a:
+  b: {b: c, d: e}
+  d: {b: c, d: e}
+`,
+	},
+
 	// Unexported field
 	{
 		&struct {
@@ -423,7 +460,7 @@ var marshalErrorTests = []struct {
 	panic string
 }{{
 	value: &struct {
-		B       int
+		B int
 		inlineB ",inline"
 	}{1, inlineB{2, inlineC{3}}},
 	panic: `Duplicated key 'b' in struct struct \{ B int; .*`,
