@@ -14,10 +14,11 @@ import (
 )
 
 type encoder struct {
-	emitter yaml_emitter_t
-	event   yaml_event_t
-	out     []byte
-	flow    string
+	emitter      yaml_emitter_t
+	event        yaml_event_t
+	out          []byte
+	flow         string
+	doubleQuoted bool
 	// doneInit holds whether the initial stream_start_event has been
 	// emitted.
 	doneInit bool
@@ -195,9 +196,12 @@ func (e *encoder) structv(tag string, in reflect.Value) {
 			if info.OmitEmpty && isZero(value) {
 				continue
 			}
+			e.doubleQuoted = false
 			e.marshal("", reflect.ValueOf(info.Key))
 			e.flow = info.Flow
+			e.doubleQuoted = info.DoubleQuoted
 			e.marshal("", value)
+			e.doubleQuoted = false
 		}
 		if sinfo.InlineMap >= 0 {
 			m := in.Field(sinfo.InlineMap)
@@ -314,6 +318,8 @@ func (e *encoder) stringv(tag string, in reflect.Value) {
 	// if they explicitly specify a tag and a string containing
 	// text that's incompatible with that tag.
 	switch {
+	case e.doubleQuoted:
+		style = yaml_DOUBLE_QUOTED_SCALAR_STYLE
 	case strings.Contains(s, "\n"):
 		style = yaml_LITERAL_SCALAR_STYLE
 	case canUsePlain:
@@ -331,23 +337,39 @@ func (e *encoder) boolv(tag string, in reflect.Value) {
 	} else {
 		s = "false"
 	}
-	e.emitScalar(s, "", tag, yaml_PLAIN_SCALAR_STYLE)
+	var style = yaml_PLAIN_SCALAR_STYLE
+	if e.doubleQuoted {
+		style = yaml_DOUBLE_QUOTED_SCALAR_STYLE
+	}
+	e.emitScalar(s, "", tag, style)
 }
 
 func (e *encoder) intv(tag string, in reflect.Value) {
+	var style = yaml_PLAIN_SCALAR_STYLE
+	if e.doubleQuoted {
+		style = yaml_DOUBLE_QUOTED_SCALAR_STYLE
+	}
 	s := strconv.FormatInt(in.Int(), 10)
-	e.emitScalar(s, "", tag, yaml_PLAIN_SCALAR_STYLE)
+	e.emitScalar(s, "", tag, style)
 }
 
 func (e *encoder) uintv(tag string, in reflect.Value) {
+	var style = yaml_PLAIN_SCALAR_STYLE
+	if e.doubleQuoted {
+		style = yaml_DOUBLE_QUOTED_SCALAR_STYLE
+	}
 	s := strconv.FormatUint(in.Uint(), 10)
-	e.emitScalar(s, "", tag, yaml_PLAIN_SCALAR_STYLE)
+	e.emitScalar(s, "", tag, style)
 }
 
 func (e *encoder) timev(tag string, in reflect.Value) {
+	var style = yaml_PLAIN_SCALAR_STYLE
+	if e.doubleQuoted {
+		style = yaml_DOUBLE_QUOTED_SCALAR_STYLE
+	}
 	t := in.Interface().(time.Time)
 	s := t.Format(time.RFC3339Nano)
-	e.emitScalar(s, "", tag, yaml_PLAIN_SCALAR_STYLE)
+	e.emitScalar(s, "", tag, style)
 }
 
 func (e *encoder) floatv(tag string, in reflect.Value) {
@@ -366,11 +388,19 @@ func (e *encoder) floatv(tag string, in reflect.Value) {
 	case "NaN":
 		s = ".nan"
 	}
-	e.emitScalar(s, "", tag, yaml_PLAIN_SCALAR_STYLE)
+	var style = yaml_PLAIN_SCALAR_STYLE
+	if e.doubleQuoted {
+		style = yaml_DOUBLE_QUOTED_SCALAR_STYLE
+	}
+	e.emitScalar(s, "", tag, style)
 }
 
 func (e *encoder) nilv() {
-	e.emitScalar("null", "", "", yaml_PLAIN_SCALAR_STYLE)
+	var style = yaml_PLAIN_SCALAR_STYLE
+	if e.doubleQuoted {
+		style = yaml_DOUBLE_QUOTED_SCALAR_STYLE
+	}
+	e.emitScalar("null", "", "", style)
 }
 
 func (e *encoder) emitScalar(value, anchor, tag string, style yaml_scalar_style_t) {

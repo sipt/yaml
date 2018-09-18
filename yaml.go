@@ -292,10 +292,11 @@ type structInfo struct {
 }
 
 type fieldInfo struct {
-	Key       string
-	Num       int
-	OmitEmpty bool
-	Flow      string
+	Key          string
+	Num          int
+	OmitEmpty    bool
+	Flow         string
+	DoubleQuoted bool
 	// Id holds the unique field identifier, so we can cheaply
 	// check for field duplicates without maintaining an extra map.
 	Id int
@@ -344,6 +345,8 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 					info.OmitEmpty = true
 				case "inline":
 					inline = true
+				case "2quoted":
+					info.DoubleQuoted = true
 				default:
 					if flag == "flow" {
 						info.Flow = flag
